@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="WinFormsMudBlazor.Models/WinFormsMudBlazor.Models.csproj" />
+  <Project Path="WinFormsMudBlazor.Services/WinFormsMudBlazor.Services.csproj" />
+  <Project Path="WinFormsMudBlazor.Views/WinFormsMudBlazor.Views.csproj" />
+  <Project Path="GustaWinMudBlazor/WinFormsMudBlazor.csproj" />
+</Solution>

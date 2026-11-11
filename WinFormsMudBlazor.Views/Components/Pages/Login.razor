@@ -1,0 +1,78 @@
+@inject IAuthService AuthService
+
+<MudPaper Elevation="4" Class="pa-6" Style="width: 100%; max-width: 420px;">
+    <div class="d-flex flex-column align-center mb-4">
+        <MudAvatar Color="Color.Primary" Size="Size.Large" Class="mb-2">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Medium" />
+        </MudAvatar>
+        <MudText Typo="Typo.h5">Autenticação</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Entre com suas credenciais de acesso</MudText>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3">@_errorMessage</MudAlert>
+    }
+
+    <MudTextField @bind-Value="_username"
+                  Label="Usuário"
+                  Variant="Variant.Outlined"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Person"
+                  Class="mb-3"
+                  Immediate="true" />
+
+    <MudTextField @bind-Value="_password"
+                  Label="Senha"
+                  Variant="Variant.Outlined"
+                  InputType="InputType.Password"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Key"
+                  Class="mb-4"
+                  Immediate="true" />
+
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               FullWidth="true"
+               Size="Size.Large"
+               Disabled="@_isLoading"
+               OnClick="LoginAsync">
+        Entrar
+    </MudButton>
+
+    <MudDivider Class="my-4" />
+    <MudText Typo="Typo.caption" Align="Align.Center" Class="d-block">
+        Admin: <b>admin</b> / <b>admin123</b><br />
+        Operador: <b>operador</b> / <b>op123</b><br />
+        Visualizador: <b>visualizador</b> / <b>vis123</b>
+    </MudText>
+</MudPaper>
+
+@code {
+    private string _username = "admin";
+    private string _password = string.Empty;
+    private string? _errorMessage;
+    private bool _isLoading;
+
+    private async Task LoginAsync()
+    {
+        _errorMessage = null;
+        _isLoading = true;
+        try
+        {
+            var (success, message) = await AuthService.LoginAsync(_username, _password);
+            if (!success)
+            {
+                _errorMessage = message;
+            }
+            else
+            {
+                _password = string.Empty;
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

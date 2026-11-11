@@ -1,0 +1,55 @@
+@page "/"
+@inject IAuthService AuthService
+
+<PageTitle>Home</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Bem-vindo, @AuthService.CurrentUser?.FullName!</MudText>
+<MudText Class="mb-6">Sistema Industrial de Receitas, Mixers (100 a 400), Blocos e Exportação para CLP/PLC (Component-Service Architecture + SQLite/EF Core).</MudText>
+
+<MudGrid>
+    <MudItem xs="12" sm="6" md="4">
+        <MudPaper Elevation="2" Class="pa-4">
+            <div class="d-flex align-center mb-2">
+                <MudIcon Icon="@Icons.Material.Filled.AccountTree" Color="Color.Primary" Class="mr-2" />
+                <MudText Typo="Typo.h6">Montagem Completa (Mestre-Detalhe)</MudText>
+            </div>
+            <MudText Typo="Typo.body2" Class="mb-4">
+                Gerencie na mesma tela as Receitas, seus 4 Mixers (100 a 400), os Blocos em sequência e os Valores de cada instância.
+            </MudText>
+            <div class="d-flex gap-2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Href="receitas">Receitas & Mixers</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small" Href="blocos">Blocos & Itens</MudButton>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="4">
+        <MudPaper Elevation="2" Class="pa-4">
+            <div class="d-flex align-center mb-2">
+                <MudIcon Icon="@Icons.Material.Filled.ViewModule" Color="Color.Secondary" Class="mr-2" />
+                <MudText Typo="Typo.h6">Cadastros Separados</MudText>
+            </div>
+            <MudText Typo="Typo.body2" Class="mb-4">
+                Telas dedicadas e individuais para cadastrar exclusivamente Receitas, exclusivamente Blocos (.ico) ou exclusivamente Itens (Tags).
+            </MudText>
+            <div class="d-flex flex-wrap gap-2">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Href="cadastro-receitas">Receitas</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small" Href="cadastro-blocos">Blocos</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Info" Size="Size.Small" Href="cadastro-itens">Itens (Tags)</MudButton>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="4">
+        <MudPaper Elevation="2" Class="pa-4">
+            <div class="d-flex align-center mb-2">
+                <MudIcon Icon="@Icons.Material.Filled.Memory" Color="Color.Success" Class="mr-2" />
+                <MudText Typo="Typo.h6">Tabela & Exportação PLC (.PDF / .CSV)</MudText>
+            </div>
+            <MudText Typo="Typo.body2" Class="mb-4">
+                Selecione uma Receita, visualize todos os Itens com suas respectivas Instâncias em tabela única e gere o arquivo .CSV ou .PDF para o PLC.
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" Href="exportar-plc">Abrir Exportação PLC</MudButton>
+        </MudPaper>
+    </MudItem>
+</MudGrid>

@@ -1,0 +1,123 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject IWindowService WindowService
+@inject ISettingsService SettingsService
+@inject IAuthService AuthService
+
+<MudThemeProvider Theme="@AppTheme.Default" IsDarkMode="@_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+@if (!AuthService.IsAuthenticated)
+{
+    <MudLayout>
+        <MudAppBar Elevation="1">
+            <MudIcon Icon="@Icons.Material.Filled.SettingsInputComponent" Class="mr-2" />
+            <MudText Typo="Typo.h6">Sistema de Receitas - Acesso Restrito</MudText>
+            <MudSpacer />
+            <FullScreenToggleButton IsFullScreen="@_isFullScreen"
+                                    OnToggle="ToggleFullScreen" />
+            <DarkModeToggleButton IsDarkMode="@_isDarkMode"
+                                  OnToggle="ToggleDarkMode" />
+            <MudTooltip Text="Fechar Aplicativo">
+                <MudIconButton Icon="@Icons.Material.Filled.Close"
+                               Color="Color.Error"
+                               OnClick="CloseWindow" />
+            </MudTooltip>
+        </MudAppBar>
+        <MudMainContent Class="mt-16 pa-6 d-flex justify-center align-center" Style="min-height: calc(100vh - 64px);">
+            <WinFormsMudBlazor.Views.Components.Pages.Login />
+        </MudMainContent>
+    </MudLayout>
+}
+else
+{
+    <MudLayout>
+        <MudAppBar Elevation="1">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                           Color="Color.Inherit"
+                           Edge="Edge.Start"
+                           OnClick="ToggleDrawer" />
+            <MudText Typo="Typo.h6" Class="ml-3">Automação & Receitas</MudText>
+            <MudSpacer />
+
+            <MudChip T="string" Icon="@Icons.Material.Filled.Person" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small" Class="mr-3">
+                @AuthService.CurrentUser?.FullName (@AuthService.CurrentUser?.Role)
+            </MudChip>
+
+            <FullScreenToggleButton IsFullScreen="@_isFullScreen"
+                                    OnToggle="ToggleFullScreen" />
+            <DarkModeToggleButton IsDarkMode="@_isDarkMode"
+                                  OnToggle="ToggleDarkMode" />
+            <MudTooltip Text="Encerrar Sessão (Logout)">
+                <MudIconButton Icon="@Icons.Material.Filled.Logout"
+                               Color="Color.Warning"
+                               OnClick="Logout" />
+            </MudTooltip>
+        </MudAppBar>
+
+        <MudDrawer id="nav-drawer" @bind-Open="_isDrawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+            <NavMenu />
+        </MudDrawer>
+
+        <MudMainContent Class="mt-16 pa-4">
+            @Body
+        </MudMainContent>
+    </MudLayout>
+}
+
+@code {
+    private bool _isDrawerOpen = true;
+    private bool _isDarkMode;
+    private bool _isFullScreen;
+
+    protected override void OnInitialized()
+    {
+        _isDarkMode = SettingsService.Current.IsDarkMode;
+        _isFullScreen = WindowService.IsFullScreen;
+
+        WindowService.FullScreenChanged += OnWindowFullScreenChanged;
+        SettingsService.SettingsChanged += OnSettingsChanged;
+        AuthService.AuthStateChanged += OnAuthStateChanged;
+    }
+
+    private void OnWindowFullScreenChanged(bool isFullScreen)
+    {
+        _isFullScreen = isFullScreen;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnSettingsChanged()
+    {
+        _isDarkMode = SettingsService.Current.IsDarkMode;
+        _isFullScreen = SettingsService.Current.IsFullScreen;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnAuthStateChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleDrawer() => _isDrawerOpen = !_isDrawerOpen;
+
+    private void ToggleDarkMode()
+    {
+        _isDarkMode = !_isDarkMode;
+        SettingsService.UpdateDarkMode(_isDarkMode);
+    }
+
+    private void ToggleFullScreen() => WindowService.ToggleFullScreen();
+
+    private void Logout() => AuthService.Logout();
+
+    private void CloseWindow() => WindowService.CloseWindow();
+
+    public void Dispose()
+    {
+        WindowService.FullScreenChanged -= OnWindowFullScreenChanged;
+        SettingsService.SettingsChanged -= OnSettingsChanged;
+        AuthService.AuthStateChanged -= OnAuthStateChanged;
+    }
+}

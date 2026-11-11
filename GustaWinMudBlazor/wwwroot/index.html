@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WinFormsMudBlazor - Automação & Receitas</title>
+    <base href="/" />
+    <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet" />
+    <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    <link href="css/app.css" rel="stylesheet" />
+    <link href="WinFormsMudBlazor.styles.css" rel="stylesheet" />
+</head>
+<body>
+    <div id="app"></div>
+
+    <div id="blazor-error-ui" data-nosnippet>
+        An unhandled error has occurred.
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss">🗙</a>
+    </div>
+
+    <script src="_framework/blazor.webview.js"></script>
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    <script>
+        function getWinFormHost() {
+            const chromeObj = window['chrome'];
+            return chromeObj && chromeObj['webview'] && chromeObj['webview']['hostObjects']
+                ? chromeObj['webview']['hostObjects']['winFormHost']
+                : null;
+        }
+
+        function toggleFullScreenWinForm() {
+            const host = getWinFormHost();
+            if (host) {
+                host.ToggleFullScreenFromJs();
+            }
+        }
+
+        function exitFullScreenWinForm() {
+            const host = getWinFormHost();
+            if (host) {
+                host.ExitFullScreenFromJs();
+            }
+        }
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'F11') {
+                e.preventDefault();
+                toggleFullScreenWinForm();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                exitFullScreenWinForm();
+            }
+        });
+    </script>
+</body>
+</html>

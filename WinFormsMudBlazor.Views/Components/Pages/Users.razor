@@ -1,0 +1,147 @@
+@page "/usuarios"
+@inject IAuthService AuthService
+
+<PageTitle>Usuários e Permissões</PageTitle>
+
+@if (!AuthService.HasRole(UserRole.Admin))
+{
+    <MudAlert Severity="Severity.Error">Você não tem permissão de Administrador para acessar esta página.</MudAlert>
+}
+else
+{
+    <MudText Typo="Typo.h5" Class="mb-4">Gerenciamento de Usuários e Permissões</MudText>
+
+    <MudGrid>
+        <MudItem xs="12" md="5">
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudText Typo="Typo.h6" Class="mb-3">Cadastrar Novo Usuário</MudText>
+
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3">@_errorMessage</MudAlert>
+                }
+                @if (!string.IsNullOrEmpty(_successMessage))
+                {
+                    <MudAlert Severity="Severity.Success" Dense="true" Class="mb-3">@_successMessage</MudAlert>
+                }
+
+                <MudTextField @bind-Value="_newFullName" Label="Nome Completo" Variant="Variant.Outlined" Class="mb-3" />
+                <MudTextField @bind-Value="_newUsername" Label="Login (Username)" Variant="Variant.Outlined" Class="mb-3" />
+                <MudTextField @bind-Value="_newPassword" Label="Senha" InputType="InputType.Password" Variant="Variant.Outlined" Class="mb-3" />
+
+                <MudSelect T="UserRole" @bind-Value="_newRole" Label="Nível de Permissão" Variant="Variant.Outlined" Class="mb-4">
+                    <MudSelectItem Value="UserRole.Visualizador">Visualizador (Somente Leitura)</MudSelectItem>
+                    <MudSelectItem Value="UserRole.Operador">Operador (Edita Receitas/Itens)</MudSelectItem>
+                    <MudSelectItem Value="UserRole.Admin">Administrador (Acesso Total)</MudSelectItem>
+                </MudSelect>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.PersonAdd"
+                           FullWidth="true"
+                           Disabled="@_isLoading"
+                           OnClick="RegisterUserAsync">
+                    Cadastrar Usuário
+                </MudButton>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="7">
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudText Typo="Typo.h6" Class="mb-3">Usuários Cadastrados</MudText>
+
+                <MudTable Items="_users" Hover="true" Dense="true" Striped="true" Loading="_isLoading">
+                    <HeaderContent>
+                        <MudTh>Usuário</MudTh>
+                        <MudTh>Nome</MudTh>
+                        <MudTh>Permissão</MudTh>
+                        <MudTh>Criado em</MudTh>
+                        <MudTh></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Usuário"><b>@context.Username</b></MudTd>
+                        <MudTd DataLabel="Nome">@context.FullName</MudTd>
+                        <MudTd DataLabel="Permissão">
+                            <MudChip T="string" Size="Size.Small" Color="@(context.Role == UserRole.Admin ? Color.Secondary : context.Role == UserRole.Operador ? Color.Info : Color.Default)">
+                                @context.Role
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Criado em">@context.CreatedAt.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                        <MudTd>
+                            @if (context.Username.ToLower() != "admin")
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Color="Color.Error"
+                                               Size="Size.Small"
+                                               OnClick="@(() => DeleteUserAsync(context.Id))" />
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private string _newUsername = string.Empty;
+    private string _newPassword = string.Empty;
+    private string _newFullName = string.Empty;
+    private UserRole _newRole = UserRole.Operador;
+    private string? _errorMessage;
+    private string? _successMessage;
+    private bool _isLoading;
+    private List<User> _users = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsersAsync();
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _users = await AuthService.GetAllUsersAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task RegisterUserAsync()
+    {
+        _errorMessage = null;
+        _successMessage = null;
+        _isLoading = true;
+        try
+        {
+            var (success, message) = await AuthService.RegisterUserAsync(_newUsername, _newPassword, _newFullName, _newRole);
+            if (!success)
+            {
+                _errorMessage = message;
+            }
+            else
+            {
+                _successMessage = message;
+                _newUsername = string.Empty;
+                _newPassword = string.Empty;
+                _newFullName = string.Empty;
+                _newRole = UserRole.Operador;
+                _users = await AuthService.GetAllUsersAsync();
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task DeleteUserAsync(int userId)
+    {
+        await AuthService.DeleteUserAsync(userId);
+        _users = await AuthService.GetAllUsersAsync();
+    }
+}

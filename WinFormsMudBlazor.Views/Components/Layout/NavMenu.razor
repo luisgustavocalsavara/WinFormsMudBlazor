@@ -1,0 +1,82 @@
+@implements IDisposable
+@inject IAuthService AuthService
+@inject IWindowService WindowService
+
+<MudNavMenu>
+    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
+
+    <MudDivider Class="my-2" />
+    <MudText Typo="Typo.caption" Class="px-4">VISÃO INTEGRADA (MESTRE-DETALHE)</MudText>
+    <MudNavLink Href="receitas" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AccountTree">
+        Montagem de Receitas & Mixers
+    </MudNavLink>
+    <MudNavLink Href="blocos" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Widgets">
+        Blocos & Seus Itens
+    </MudNavLink>
+
+    <MudDivider Class="my-2" />
+    <MudText Typo="Typo.caption" Class="px-4">CADASTROS SEPARADOS</MudText>
+    <MudNavLink Href="cadastro-receitas" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ReceiptLong">
+        Cadastro de Receitas
+    </MudNavLink>
+    <MudNavLink Href="cadastro-blocos" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ViewModule">
+        Cadastro de Blocos
+    </MudNavLink>
+    <MudNavLink Href="cadastro-itens" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Dns">
+        Cadastro de Itens (Tags)
+    </MudNavLink>
+
+    <MudDivider Class="my-2" />
+    <MudText Typo="Typo.caption" Class="px-4">INTEGRAÇÃO CLP / PLC</MudText>
+    <MudNavLink Href="exportar-plc" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Memory">
+        Itens da Receita & Exportar PLC
+    </MudNavLink>
+
+    @if (AuthService.HasRole(UserRole.Operador, UserRole.Admin))
+    {
+        <MudDivider Class="my-2" />
+        <MudText Typo="Typo.caption" Class="px-4">UTILITÁRIOS</MudText>
+        <MudNavLink Href="counter" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Add">Counter</MudNavLink>
+        <MudNavLink Href="weather" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.List">Weather</MudNavLink>
+    }
+
+    @if (AuthService.HasRole(UserRole.Admin))
+    {
+        <MudDivider Class="my-2" />
+        <MudText Typo="Typo.caption" Class="px-4">ADMINISTRAÇÃO</MudText>
+        <MudNavLink Href="usuarios" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ManageAccounts">
+            Usuários e Permissões
+        </MudNavLink>
+    }
+
+    <MudDivider Class="my-2" />
+
+    <MudNavLink Icon="@Icons.Material.Filled.Logout"
+                IconColor="Color.Warning"
+                OnClick="AuthService.Logout">
+        Trocar Usuário
+    </MudNavLink>
+
+    <MudNavLink Icon="@Icons.Material.Filled.ExitToApp"
+                IconColor="Color.Error"
+                OnClick="WindowService.CloseWindow">
+        Sair do Sistema
+    </MudNavLink>
+</MudNavMenu>
+
+@code {
+    protected override void OnInitialized()
+    {
+        AuthService.AuthStateChanged += OnAuthStateChanged;
+    }
+
+    private void OnAuthStateChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AuthService.AuthStateChanged -= OnAuthStateChanged;
+    }
+}

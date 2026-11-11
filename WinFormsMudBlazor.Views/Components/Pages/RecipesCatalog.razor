@@ -1,0 +1,237 @@
+@page "/cadastro-receitas"
+@inject IRecipeService RecipeService
+@inject IAuthService AuthService
+
+<PageTitle>Cadastro de Receitas</PageTitle>
+
+<div class="d-flex justify-space-between align-center mb-3">
+    <MudText Typo="Typo.h5">Cadastro Dedicado de Receitas</MudText>
+    @if (!string.IsNullOrEmpty(_statusMessage))
+    {
+        <MudChip T="string" Color="@(_hasError ? Color.Error : Color.Success)" Variant="Variant.Filled">
+            @_statusMessage
+        </MudChip>
+    }
+</div>
+
+<MudGrid>
+    @if (CanEdit)
+    {
+        <MudItem xs="12" md="4">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-3">
+                    @(_editingRecipeId == 0 ? "Cadastrar Nova Receita" : $"Editar Receita #{_editingRecipeId}")
+                </MudText>
+
+                <MudTextField @bind-Value="_recipeName"
+                              Label="Nome da Receita"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Class="mb-3" />
+
+                <MudTextField @bind-Value="_recipeSku"
+                              Label="SKU"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Class="mb-4" />
+
+                <div class="d-flex gap-2">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               OnClick="SaveRecipeAsync">
+                        Salvar Receita
+                    </MudButton>
+                    @if (_editingRecipeId != 0)
+                    {
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Default"
+                                   OnClick="StartNewRecipe">
+                            Limpar
+                        </MudButton>
+                    }
+                </div>
+            </MudPaper>
+        </MudItem>
+    }
+
+    <MudItem xs="12" md="@(CanEdit ? 8 : 12)">
+        <MudPaper Elevation="2" Class="pa-4">
+            <div class="d-flex justify-space-between align-center mb-3">
+                <MudText Typo="Typo.h6">Receitas Cadastradas (@_filteredRecipes.Count)</MudText>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Secondary"
+                           Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.AccountTree"
+                           Href="receitas">
+                    Ir para Montagem de Mixers/Blocos
+                </MudButton>
+            </div>
+
+            <MudTextField @bind-Value="RecipeSearchTerm"
+                          Placeholder="Filtrar receitas por Nome, SKU ou Data de Criação (dd/mm/aaaa)..."
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Clearable="true"
+                          Immediate="true"
+                          Class="mb-3" />
+
+            <MudTable T="Recipe" Items="_filteredRecipes" Hover="true" Dense="true" Striped="true" Loading="_isLoading">
+                <HeaderContent>
+                    <MudTh>ID</MudTh>
+                    <MudTh>Nome da Receita</MudTh>
+                    <MudTh>SKU</MudTh>
+                    <MudTh>Data de Criação</MudTh>
+                    <MudTh>Mixers</MudTh>
+                    @if (CanEdit)
+                    {
+                        <MudTh>Ações</MudTh>
+                    }
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="ID">#@context.Id</MudTd>
+                    <MudTd DataLabel="Nome da Receita"><b>@context.Name</b></MudTd>
+                    <MudTd DataLabel="SKU"><code>@context.Sku</code></MudTd>
+                    <MudTd DataLabel="Data de Criação">@context.CreatedAt.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                    <MudTd DataLabel="Mixers">
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">
+                            @context.Mixers.Sum(m => m.RecipeBlocks.Count) blocos nos 4 Mixers
+                        </MudChip>
+                    </MudTd>
+                    @if (CanEdit)
+                    {
+                        <MudTd>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           Size="Size.Small"
+                                           Color="Color.Primary"
+                                           OnClick="@(() => StartEditRecipe(context))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeleteRecipeAsync(context))" />
+                        </MudTd>
+                    }
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Typo="Typo.body2" Class="pa-2">Nenhuma receita encontrada.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private bool CanEdit => AuthService.HasRole(UserRole.Admin, UserRole.Operador);
+
+    private bool _isLoading;
+    private List<Recipe> _allRecipes = [];
+    private List<Recipe> _filteredRecipes = [];
+
+    private string _recipeSearchTerm = string.Empty;
+    private string RecipeSearchTerm
+    {
+        get => _recipeSearchTerm;
+        set
+        {
+            if (_recipeSearchTerm != value)
+            {
+                _recipeSearchTerm = value;
+                ApplyRecipeFilter();
+            }
+        }
+    }
+
+    private int _editingRecipeId;
+    private string _recipeName = string.Empty;
+    private string _recipeSku = string.Empty;
+    private string? _statusMessage;
+    private bool _hasError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        StartNewRecipe();
+        await LoadRecipesAsync();
+    }
+
+    private async Task LoadRecipesAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _allRecipes = await RecipeService.GetAllRecipesAsync();
+            ApplyRecipeFilter();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ApplyRecipeFilter()
+    {
+        if (string.IsNullOrWhiteSpace(_recipeSearchTerm))
+        {
+            _filteredRecipes = [.. _allRecipes];
+            return;
+        }
+
+        var term = _recipeSearchTerm.Trim();
+        _filteredRecipes = _allRecipes
+            .Where(r =>
+                r.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                r.Sku.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                r.CreatedAt.ToString("dd/MM/yyyy HH:mm").Contains(term, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private void StartNewRecipe()
+    {
+        _editingRecipeId = 0;
+        _recipeName = string.Empty;
+        _recipeSku = string.Empty;
+        _statusMessage = null;
+    }
+
+    private void StartEditRecipe(Recipe recipe)
+    {
+        _editingRecipeId = recipe.Id;
+        _recipeName = recipe.Name;
+        _recipeSku = recipe.Sku;
+        _statusMessage = null;
+    }
+
+    private async Task SaveRecipeAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_recipeName) || string.IsNullOrWhiteSpace(_recipeSku))
+        {
+            _hasError = true;
+            _statusMessage = "Informe o Nome da Receita e o SKU.";
+            return;
+        }
+
+        var recipe = new Recipe
+        {
+            Id = _editingRecipeId,
+            Name = _recipeName.Trim(),
+            Sku = _recipeSku.Trim()
+        };
+
+        await RecipeService.SaveRecipeAsync(recipe);
+        StartNewRecipe();
+        _hasError = false;
+        _statusMessage = "Receita salva com os 4 Mixers (100, 200, 300, 400)!";
+
+        await LoadRecipesAsync();
+    }
+
+    private async Task DeleteRecipeAsync(Recipe recipe)
+    {
+        await RecipeService.DeleteRecipeAsync(recipe.Id);
+        await LoadRecipesAsync();
+        _hasError = false;
+        _statusMessage = "Receita excluída.";
+    }
+}

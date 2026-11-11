@@ -1,0 +1,365 @@
+@page "/cadastro-itens"
+@inject IBlockService BlockService
+@inject IAuthService AuthService
+
+<PageTitle>Cadastro de Itens (Tags)</PageTitle>
+
+<div class="d-flex justify-space-between align-center mb-3">
+    <MudText Typo="Typo.h5">Cadastro Dedicado de Itens (Tags dos Blocos)</MudText>
+    @if (!string.IsNullOrEmpty(_statusMessage))
+    {
+        <MudChip T="string" Color="@(_hasError ? Color.Error : Color.Success)" Variant="Variant.Filled">
+            @_statusMessage
+        </MudChip>
+    }
+</div>
+
+<MudGrid>
+    @if (CanEdit)
+    {
+        <MudItem xs="12" md="4">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-3">
+                    @(_editingItemId == 0 ? "Cadastrar Novo Item" : $"Editar Item #{_editingItemId}")
+                </MudText>
+
+                <MudSelect T="int?"
+                           @bind-Value="_selectedBlockId"
+                           Label="Bloco ao qual o Item pertence"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Dense="true"
+                           Class="mb-3">
+                    @foreach (var blk in _allBlocks)
+                    {
+                        <MudSelectItem T="int?" Value="@blk.Id">
+                            [@blk.MixerType.GetDisplayName()] @blk.Code - @blk.Name
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudTextField @bind-Value="_itemTag"
+                              Label="Tag (Ex: MX100.VELOCIDADE_RPM)"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Class="mb-3" />
+
+                <MudSelect T="ItemDataType"
+                           @bind-Value="_itemDataType"
+                           Label="Tipo de Dado (INT, DINT, BOOL, STRING)"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Dense="true"
+                           Class="mb-3">
+                    @foreach (var dt in Enum.GetValues<ItemDataType>())
+                    {
+                        <MudSelectItem T="ItemDataType" Value="@dt">@dt</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudTextField @bind-Value="_itemDescription"
+                              Label="Descrição do Item"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Lines="2"
+                              Class="mb-4" />
+
+                <div class="d-flex gap-2">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               OnClick="SaveItemAsync">
+                        Salvar Item
+                    </MudButton>
+                    @if (_editingItemId != 0)
+                    {
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Default"
+                                   OnClick="StartNewItem">
+                            Limpar
+                        </MudButton>
+                    }
+                </div>
+            </MudPaper>
+        </MudItem>
+    }
+
+    <MudItem xs="12" md="@(CanEdit ? 8 : 12)">
+        <MudPaper Elevation="2" Class="pa-4">
+            <div class="d-flex justify-space-between align-center mb-3">
+                <MudText Typo="Typo.h6">Todos os Itens Cadastrados (@_filteredItems.Count)</MudText>
+            </div>
+
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="MixerType?"
+                               @bind-Value="SelectedMixerFilter"
+                               Label="Filtrar por Mixer"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Dense="true"
+                               Clearable="true"
+                               Placeholder="Todos os Mixers">
+                        @foreach (var mx in Enum.GetValues<MixerType>())
+                        {
+                            <MudSelectItem T="MixerType?" Value="@mx">@mx.GetDisplayName()</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="int?"
+                               @bind-Value="SelectedBlockFilterId"
+                               Label="Filtrar por Bloco"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Dense="true"
+                               Clearable="true"
+                               Placeholder="Todos os Blocos">
+                        @foreach (var blk in _allBlocks)
+                        {
+                            <MudSelectItem T="int?" Value="@blk.Id">@blk.Code - @blk.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="SearchTerm"
+                                  Placeholder="Filtrar por TAG ou Descrição..."
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Clearable="true"
+                                  Immediate="true" />
+                </MudItem>
+            </MudGrid>
+
+            <MudTable T="RecipeItem" Items="_filteredItems" Hover="true" Dense="true" Striped="true" Loading="_isLoading">
+                <HeaderContent>
+                    <MudTh>Mixer</MudTh>
+                    <MudTh>Bloco</MudTh>
+                    <MudTh>Tag</MudTh>
+                    <MudTh>Descrição</MudTh>
+                    <MudTh>Tipo</MudTh>
+                    @if (CanEdit)
+                    {
+                        <MudTh>Ações</MudTh>
+                    }
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Mixer">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Text">
+                            @context.Block?.MixerType.GetDisplayName()
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Bloco">
+                        <b>@context.Block?.Code</b>
+                        <MudText Typo="Typo.caption" Class="d-block">@context.Block?.Name</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Tag"><code>@context.Tag</code></MudTd>
+                    <MudTd DataLabel="Descrição">@context.Description</MudTd>
+                    <MudTd DataLabel="Tipo">
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary">@context.DataType</MudChip>
+                    </MudTd>
+                    @if (CanEdit)
+                    {
+                        <MudTd>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           Size="Size.Small"
+                                           Color="Color.Primary"
+                                           OnClick="@(() => StartEditItem(context))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeleteItemAsync(context))" />
+                        </MudTd>
+                    }
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Typo="Typo.body2" Class="pa-2">Nenhum item encontrado.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private bool CanEdit => AuthService.HasRole(UserRole.Admin, UserRole.Operador);
+
+    private bool _isLoading;
+    private List<RecipeItem> _allItems = [];
+    private List<Block> _allBlocks = [];
+    private List<RecipeItem> _filteredItems = [];
+
+    private MixerType? _selectedMixerFilter;
+    private MixerType? SelectedMixerFilter
+    {
+        get => _selectedMixerFilter;
+        set
+        {
+            if (_selectedMixerFilter != value)
+            {
+                _selectedMixerFilter = value;
+                ApplyFilter();
+            }
+        }
+    }
+
+    private int? _selectedBlockFilterId;
+    private int? SelectedBlockFilterId
+    {
+        get => _selectedBlockFilterId;
+        set
+        {
+            if (_selectedBlockFilterId != value)
+            {
+                _selectedBlockFilterId = value;
+                ApplyFilter();
+            }
+        }
+    }
+
+    private string _searchTerm = string.Empty;
+    private string SearchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                ApplyFilter();
+            }
+        }
+    }
+
+    private int _editingItemId;
+    private int? _selectedBlockId;
+    private string _itemTag = string.Empty;
+    private string _itemDescription = string.Empty;
+    private ItemDataType _itemDataType = ItemDataType.INT;
+    private string? _statusMessage;
+    private bool _hasError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _allBlocks = await BlockService.GetAllBlocksAsync();
+            _allItems = await BlockService.GetAllBlockItemsAsync();
+
+            if (_selectedBlockId is null && _allBlocks.Count > 0)
+            {
+                _selectedBlockId = _allBlocks[0].Id;
+            }
+
+            ApplyFilter();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        IEnumerable<RecipeItem> query = _allItems;
+
+        if (_selectedMixerFilter.HasValue)
+        {
+            query = query.Where(i => i.Block != null && i.Block.MixerType == _selectedMixerFilter.Value);
+        }
+
+        if (_selectedBlockFilterId.HasValue && _selectedBlockFilterId.Value > 0)
+        {
+            query = query.Where(i => i.BlockId == _selectedBlockFilterId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            var term = _searchTerm.Trim();
+            query = query.Where(i =>
+                i.Tag.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                i.Description.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                i.DataType.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                (i.Block != null && (
+                    i.Block.Code.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    i.Block.Name.Contains(term, StringComparison.OrdinalIgnoreCase))));
+        }
+
+        _filteredItems = query.ToList();
+    }
+
+    private void StartNewItem()
+    {
+        _editingItemId = 0;
+        _selectedBlockId = _selectedBlockFilterId ?? _allBlocks.FirstOrDefault()?.Id;
+        _itemTag = string.Empty;
+        _itemDescription = string.Empty;
+        _itemDataType = ItemDataType.INT;
+        _statusMessage = null;
+    }
+
+    private void StartEditItem(RecipeItem item)
+    {
+        _editingItemId = item.Id;
+        _selectedBlockId = item.BlockId;
+        _itemTag = item.Tag;
+        _itemDescription = item.Description;
+        _itemDataType = item.DataType;
+        _statusMessage = null;
+    }
+
+    private async Task SaveItemAsync()
+    {
+        if (_selectedBlockId is null or <= 0)
+        {
+            _hasError = true;
+            _statusMessage = "Selecione a qual Bloco este Item pertence.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_itemTag))
+        {
+            _hasError = true;
+            _statusMessage = "Informe a TAG do item.";
+            return;
+        }
+
+        var item = new RecipeItem
+        {
+            Id = _editingItemId,
+            BlockId = _selectedBlockId.Value,
+            Tag = _itemTag.Trim(),
+            Description = _itemDescription.Trim(),
+            DataType = _itemDataType
+        };
+
+        await BlockService.SaveBlockItemAsync(item);
+        _hasError = false;
+        _statusMessage = _editingItemId == 0
+            ? "Novo item cadastrado com sucesso!"
+            : "Item atualizado com sucesso!";
+
+        _editingItemId = 0;
+        _itemTag = string.Empty;
+        _itemDescription = string.Empty;
+        _itemDataType = ItemDataType.INT;
+
+        await LoadDataAsync();
+    }
+
+    private async Task DeleteItemAsync(RecipeItem item)
+    {
+        await BlockService.DeleteBlockItemAsync(item.Id);
+        _hasError = false;
+        _statusMessage = $"Item '{item.Tag}' excluído.";
+        await LoadDataAsync();
+    }
+}

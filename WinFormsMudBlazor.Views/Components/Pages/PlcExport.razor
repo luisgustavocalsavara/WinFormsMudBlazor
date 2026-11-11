@@ -1,0 +1,296 @@
+@page "/exportar-plc"
+@inject IRecipeService RecipeService
+@inject IPlcExportService PlcExportService
+@inject IAuthService AuthService
+
+<PageTitle>Itens da Receita & Exportar PLC</PageTitle>
+
+<div class="d-flex justify-space-between align-center mb-3">
+    <div>
+        <MudText Typo="Typo.h5">Tabela de Itens da Receita (Com Instância) & Exportação para PLC</MudText>
+        <MudText Typo="Typo.caption">Selecione uma receita para visualizar todos os itens instanciados dos 4 Mixers e gerar o arquivo .CSV ou .PDF pronto para o CLP.</MudText>
+    </div>
+    @if (!string.IsNullOrEmpty(_statusMessage))
+    {
+        <MudChip T="string" Color="@(_hasError ? Color.Error : Color.Success)" Variant="Variant.Filled">
+            @_statusMessage
+        </MudChip>
+    }
+</div>
+
+<MudPaper Elevation="2" Class="pa-4 mb-4">
+    <MudGrid Spacing="2" Class="align-center">
+        <!-- SELEÇÃO DA RECEITA -->
+        <MudItem xs="12" md="4">
+            <MudSelect T="int?"
+                       Value="_selectedRecipeId"
+                       ValueChanged="OnSelectedRecipeIdChangedAsync"
+                       Label="Selecionar Receita"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Dense="true"
+                       Adornment="Adornment.Start"
+                       AdornmentIcon="@Icons.Material.Filled.ReceiptLong">
+                @foreach (var rec in _recipes)
+                {
+                    <MudSelectItem T="int?" Value="@rec.Id">@rec.Name (SKU: @rec.Sku)</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+
+        <!-- FILTRO OPCIONAL POR MIXER -->
+        <MudItem xs="12" sm="6" md="2">
+            <MudSelect T="MixerType?"
+                       @bind-Value="SelectedMixerFilter"
+                       Label="Filtrar Mixer"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Dense="true"
+                       Clearable="true"
+                       Placeholder="Todos (100 a 400)">
+                @foreach (var mx in Enum.GetValues<MixerType>())
+                {
+                    <MudSelectItem T="MixerType?" Value="@mx">@mx.GetDisplayName()</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+
+        <!-- BUSCA RÁPIDA POR TAG, INSTÂNCIA, BLOCO OU VALOR -->
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField @bind-Value="SearchTerm"
+                          Placeholder="Filtrar Tag, Instância, Bloco ou Valor..."
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Clearable="true"
+                          Immediate="true" />
+        </MudItem>
+
+        <!-- BOTÕES DE EXPORTAÇÃO .CSV E .PDF PARA O PLC -->
+        <MudItem xs="12" md="3" Class="d-flex gap-2 justify-end">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Success"
+                       StartIcon="@Icons.Material.Filled.TableView"
+                       Disabled="@(_filteredRows.Count == 0)"
+                       OnClick="ExportCsvAsync">
+                Gerar .CSV (PLC)
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Error"
+                       StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                       Disabled="@(_filteredRows.Count == 0)"
+                       OnClick="ExportPdfAsync">
+                Gerar .PDF (PLC)
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="2" Class="pa-4">
+    @if (_selectedRecipe is null)
+    {
+        <MudAlert Severity="Severity.Info">Selecione uma receita acima para carregar a tabela de itens instanciados.</MudAlert>
+    }
+    else
+    {
+        <div class="d-flex justify-space-between align-center mb-3">
+            <div>
+                <MudText Typo="Typo.h6">
+                    Itens Prontos para o PLC — @_selectedRecipe.Name (SKU: @_selectedRecipe.Sku)
+                </MudText>
+                <MudText Typo="Typo.caption">
+                    Total de Tags listadas: <b>@_filteredRows.Count</b> | Data de criação da receita: @_selectedRecipe.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                </MudText>
+            </div>
+        </div>
+
+        <MudTable T="PlcExportRow"
+                  Items="_filteredRows"
+                  Hover="true"
+                  Dense="true"
+                  Striped="true"
+                  Bordered="true"
+                  Loading="_isLoading">
+            <HeaderContent>
+                <MudTh>Mixer</MudTh>
+                <MudTh>Instância na Receita</MudTh>
+                <MudTh>Bloco</MudTh>
+                <MudTh>Tag de Instância (PLC)</MudTh>
+                <MudTh>Tag Base</MudTh>
+                <MudTh>Descrição</MudTh>
+                <MudTh>Tipo</MudTh>
+                <MudTh>Valor</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Mixer">
+                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">
+                        @context.MixerName
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="Instância na Receita">
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Filled">
+                        Instância #@context.BlockSequenceOrder
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="Bloco">
+                    <b>@context.BlockCode</b> - @context.BlockName
+                </MudTd>
+                <MudTd DataLabel="Tag de Instância (PLC)">
+                    <code><b>@context.PlcInstanceTag</b></code>
+                </MudTd>
+                <MudTd DataLabel="Tag Base">
+                    <code>@context.Tag</code>
+                </MudTd>
+                <MudTd DataLabel="Descrição">@context.Description</MudTd>
+                <MudTd DataLabel="Tipo">
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                        @context.DataType
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="Valor">
+                    <MudText Typo="Typo.body2" Color="Color.Success"><b>@context.Value</b></MudText>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Class="pa-3">Nenhum item encontrado para esta receita ou filtro.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    }
+</MudPaper>
+
+@code {
+    private bool _isLoading;
+    private List<PlcExportRow> _allRows = [];
+    private List<Recipe> _recipes = [];
+    private int? _selectedRecipeId;
+    private Recipe? _selectedRecipe;
+    private List<PlcExportRow> _filteredRows = [];
+
+    private MixerType? _selectedMixerFilter;
+    private MixerType? SelectedMixerFilter
+    {
+        get => _selectedMixerFilter;
+        set
+        {
+            if (_selectedMixerFilter != value)
+            {
+                _selectedMixerFilter = value;
+                ApplyFilter();
+            }
+        }
+    }
+
+    private string _searchTerm = string.Empty;
+    private string SearchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                ApplyFilter();
+            }
+        }
+    }
+
+    private string? _statusMessage;
+    private bool _hasError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _recipes = await RecipeService.GetAllRecipesAsync();
+            if (_selectedRecipeId is null && _recipes.Count > 0)
+            {
+                await OnSelectedRecipeIdChangedAsync(_recipes[0].Id);
+            }
+            else if (_selectedRecipeId.HasValue)
+            {
+                await LoadSelectedRecipeItemsAsync(_selectedRecipeId.Value);
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OnSelectedRecipeIdChangedAsync(int? recipeId)
+    {
+        _selectedRecipeId = recipeId;
+        await LoadSelectedRecipeItemsAsync(recipeId);
+    }
+
+    private async Task LoadSelectedRecipeItemsAsync(int? recipeId)
+    {
+        if (recipeId is null or <= 0)
+        {
+            _selectedRecipe = null;
+            _allRows = [];
+            _filteredRows = [];
+            return;
+        }
+
+        _selectedRecipe = await RecipeService.GetRecipeWithMixersAsync(recipeId.Value);
+        _allRows = await PlcExportService.GetPlcItemsForRecipeAsync(recipeId.Value);
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        IEnumerable<PlcExportRow> query = _allRows;
+
+        if (_selectedMixerFilter.HasValue)
+        {
+            query = query.Where(r => r.MixerType == _selectedMixerFilter.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            var term = _searchTerm.Trim();
+            query = query.Where(r =>
+                r.Tag.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                r.PlcInstanceTag.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                r.Description.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                r.BlockCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                r.BlockName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                r.Value.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                r.InstanceLabel.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+
+        _filteredRows = query.ToList();
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        if (_selectedRecipe is null || _filteredRows.Count == 0)
+        {
+            _hasError = true;
+            _statusMessage = "Selecione uma receita que possua itens antes de exportar o CSV.";
+            return;
+        }
+
+        var (success, message, _) = await PlcExportService.ExportToCsvAsync(_selectedRecipe, _filteredRows);
+        _hasError = !success;
+        _statusMessage = message;
+    }
+
+    private async Task ExportPdfAsync()
+    {
+        if (_selectedRecipe is null || _filteredRows.Count == 0)
+        {
+            _hasError = true;
+            _statusMessage = "Selecione uma receita que possua itens antes de exportar o PDF.";
+            return;
+        }
+
+        var (success, message, _) = await PlcExportService.ExportToPdfAsync(_selectedRecipe, _filteredRows);
+        _hasError = !success;
+        _statusMessage = message;
+    }
+}
