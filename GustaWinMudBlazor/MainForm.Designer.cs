@@ -42,6 +42,7 @@ namespace WinFormsMudBlazor
             Name = "MainForm";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "WinFormsMudBlazor - Automação & Receitas";
+            Load += MainForm_Load;
             ResumeLayout(false);
         }
 

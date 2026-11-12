@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Components.WebView.WindowsForms;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +17,7 @@ public partial class MainForm : Form
     private bool _wasMaximized;
     private readonly JsonSettingsService _settingsService;
     private readonly WinFormsWindowService _windowService;
+    private bool _isWebViewInitialized;
 
     private Panel? _loadingPanel;
     private Label? _loadingLabel;
@@ -66,18 +68,18 @@ public partial class MainForm : Form
 
     private static string LoadDefaultIconDataUrl()
     {
+        var icoPath = Path.Combine(AppContext.BaseDirectory, "wwwroot", "favicon.ico");
         try
         {
-            var icoPath = Path.Combine(AppContext.BaseDirectory, "wwwroot", "favicon.ico");
             if (File.Exists(icoPath))
             {
                 var bytes = File.ReadAllBytes(icoPath);
                 return $"data:image/x-icon;base64,{Convert.ToBase64String(bytes)}";
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Ignora caso o arquivo não exista
+            Trace.TraceError("Could not load the default icon from '{0}': {1}", icoPath, ex);
         }
         return string.Empty;
     }
@@ -186,6 +188,12 @@ public partial class MainForm : Form
                 _windowService.ExitFullScreen();
                 e.Handled = true;
             }
+            else if (e.KeyCode == Keys.F12 && _isWebViewInitialized)
+            {
+                BlazorWebView.WebView.CoreWebView2.OpenDevToolsWindow();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
         };
     }
 
@@ -198,12 +206,15 @@ public partial class MainForm : Form
         {
             if (e.IsSuccess)
             {
-                if (_loadingLabel is not null)
-                {
-                    _loadingLabel.Text = "Carregando interface Blazor...";
-                }
 
+                BlazorWebView.WebView.CoreWebView2.Settings.AreDevToolsEnabled = true;
+                _isWebViewInitialized = true;
+
+                _loadingLabel?.Text = "Carregando interface Blazor...";
                 BlazorWebView.WebView.CoreWebView2.AddHostObjectToScript("winFormHost", new WinFormInterop(_windowService));
+#if DEBUG
+                BeginInvoke((Action)OpenDevToolsWindow);
+#endif
             }
             else
             {
@@ -219,6 +230,22 @@ public partial class MainForm : Form
         {
             HideLoadingOverlay();
         };
+    }
+
+    private void OpenDevToolsWindow()
+    {
+        try
+        {
+            BlazorWebView.WebView.CoreWebView2.OpenDevToolsWindow();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Não foi possível abrir as ferramentas do WebView2: {ex.Message}",
+                "Erro ao abrir DevTools",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
     }
 
     public void ToggleFullScreenState()
@@ -244,5 +271,10 @@ public partial class MainForm : Form
                 Bounds = _previousBounds;
             }
         }
+    }
+
+    private void MainForm_Load(object sender, EventArgs e)
+    {
+
     }
 }

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WinFormsMudBlazor.Models.Entities;
@@ -126,18 +127,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
         using var db = dbFactory.CreateDbContext();
 
-        // Verifica se o banco já possui a nova tabela MixersReceita e a coluna MixerType em Blocos
+        // EnsureCreated does not migrate an existing schema; keep the database intact if it is outdated.
         try
         {
             db.Database.EnsureCreated();
             _ = db.RecipeMixers.Any();
             _ = db.Blocks.Select(b => b.MixerType).FirstOrDefault();
         }
-        catch
+        catch (SqliteException ex)
         {
-            // Se o arquivo SQLite era da versão anterior sem a tabela MixersReceita, recria o esquema atualizado
-            db.Database.EnsureDeleted();
-            db.Database.EnsureCreated();
+            throw new InvalidOperationException(
+                "O banco SQLite não corresponde ao esquema esperado. Os dados foram preservados; faça backup e aplique uma migração antes de iniciar novamente.",
+                ex);
         }
 
         // Cria usuários iniciais padrão caso não existam

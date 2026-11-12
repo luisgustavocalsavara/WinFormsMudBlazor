@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using WinFormsMudBlazor.Models.Entities;
 using WinFormsMudBlazor.Models.Interfaces;
@@ -37,8 +38,9 @@ public class JsonSettingsService : ISettingsService
                 }
             }
         }
-        catch
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {
+            Trace.TraceError("Could not load user settings from '{0}': {1}", _filePath, ex);
             Current = new AppSettings();
         }
     }
@@ -50,9 +52,9 @@ public class JsonSettingsService : ISettingsService
             var json = JsonSerializer.Serialize(Current, JsonOptions);
             File.WriteAllText(_filePath, json);
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Ignora falhas de permissão de escrita em disco se houver
+            Trace.TraceError("Could not save user settings to '{0}': {1}", _filePath, ex);
         }
     }
 

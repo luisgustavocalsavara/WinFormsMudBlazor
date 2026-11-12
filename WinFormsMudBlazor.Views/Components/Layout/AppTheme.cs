@@ -29,6 +29,8 @@ public static class AppTheme
         PaletteDark = new PaletteDark
         {
             Primary = "#7e6fff",
+            PrimaryDarken = "#5748db",
+            HoverOpacity = 0.16,
             Surface = "#1e1e2d",
             Background = "#1a1a27",
             BackgroundGray = "#151521",
@@ -51,6 +53,7 @@ public static class AppTheme
             Error = "#ff3f5f",
             LinesDefault = "#33323e",
             TableLines = "#33323e",
+            TableHover = "#39384a",
             Divider = "#292838",
             OverlayLight = "#1e1e2d80",
         },
