@@ -1,4 +1,4 @@
-namespace WinFormsMudBlazor
+namespace GustaMudBlazor
 {
     partial class MainForm
     {

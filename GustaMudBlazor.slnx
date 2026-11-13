@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="GustaWinMudBlazor/GustaMudBlazor.csproj" />
+  <Project Path="GustaWinMudBlazor.Models/GustaMudBlazor.Models.csproj" />
+  <Project Path="GustaWinMudBlazor.Services/GustaMudBlazor.Services.csproj" />
+  <Project Path="GustaWinMudBlazor.Views/GustaMudBlazor.Views.csproj" />
+</Solution>

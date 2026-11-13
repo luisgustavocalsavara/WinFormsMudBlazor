@@ -1,0 +1,24 @@
+@inject ISettingsService SettingsService
+
+<MudTooltip Text="@Tooltip">
+    <MudIconButton Icon="@CurrentIcon"
+                   OnClick="ToggleTheme"
+                   Size="Size.Medium"
+                   Color="Color.Primary"
+                   Class="@(_animate ? "darkmode-icon animate" : "darkmode-icon")" />
+</MudTooltip>
+
+@code {
+    private bool _animate;
+    private bool IsDarkMode => SettingsService.Current.IsDarkMode;
+    private string CurrentIcon => IsDarkMode ? Icons.Material.Rounded.LightMode : Icons.Material.Outlined.DarkMode;
+    private string Tooltip => IsDarkMode ? "Set Light Mode" : "Set Dark Mode";
+
+    private async Task ToggleTheme()
+    {
+        _animate = true;
+        SettingsService.UpdateDarkMode(!IsDarkMode);
+        await Task.Delay(300);
+        _animate = false;
+    }
+}

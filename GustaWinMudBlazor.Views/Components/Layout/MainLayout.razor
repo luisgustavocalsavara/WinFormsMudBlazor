@@ -1,0 +1,113 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject IWindowService WindowService
+@inject ISettingsService SettingsService
+@inject IAuthService AuthService
+@inject IJSRuntime JS
+
+<MudThemeProvider Theme="@AppTheme.Default" IsDarkMode="@_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+@if (!AuthService.IsAuthenticated)
+{
+    <MudLayout>
+        <MudAppBar Elevation="1">
+            <MudIcon Icon="@Icons.Material.Filled.SettingsInputComponent" Class="mr-2" />
+            <MudText Typo="Typo.h6">Sistema de Receitas - Acesso Restrito</MudText>
+            <MudSpacer />
+            <FullScreenToggleButton />
+            <DarkModeToggleButton />
+            <MudTooltip Text="Fechar Aplicativo">
+                <MudIconButton Icon="@Icons.Material.Filled.Close"
+                               Color="Color.Error"
+                               OnClick="CloseWindow" />
+            </MudTooltip>
+        </MudAppBar>
+        <MudMainContent Class="mt-16 pa-6 d-flex justify-center align-center" Style="min-height: calc(100vh - 64px);">
+            <GustaMudBlazor.Views.Components.Pages.Login />
+        </MudMainContent>
+    </MudLayout>
+}
+else
+{
+    <MudLayout>
+        <MudAppBar Elevation="1">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                           Color="Color.Inherit"
+                           Edge="Edge.Start"
+                           OnClick="ToggleDrawer" />
+            <MudText Typo="Typo.h6" Class="ml-3">Automação & Receitas</MudText>
+            <MudSpacer />
+
+            <MudChip T="string" Icon="@Icons.Material.Filled.Person" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small" Class="mr-3">
+                @AuthService.CurrentUser?.FullName (@AuthService.CurrentUser?.Role)
+            </MudChip>
+
+            <FullScreenToggleButton />
+            <DarkModeToggleButton />
+            <MudTooltip Text="Encerrar Sessão (Logout)">
+                <MudIconButton Icon="@Icons.Material.Filled.Logout"
+                               Color="Color.Warning"
+                               OnClick="Logout" />
+            </MudTooltip>
+        </MudAppBar>
+
+        <MudDrawer id="nav-drawer" @bind-Open="_isDrawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+            <NavMenu />           
+        </MudDrawer>
+
+        <MudMainContent Class="mt-16 pa-4">
+            @Body
+        </MudMainContent>
+    </MudLayout>
+}
+
+@code {
+    private bool _isDrawerOpen = true;
+    private bool _isDarkMode;
+
+    protected override void OnInitialized()
+    {
+        _isDarkMode = SettingsService.Current.IsDarkMode;
+
+        SettingsService.SettingsChanged += OnSettingsChanged;
+        AuthService.AuthStateChanged += OnAuthStateChanged;
+
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("hideStartupOverlay");
+        }
+    }
+
+    private void OnSettingsChanged()
+    {
+        _ = InvokeAsync(() =>
+        {
+            _isDarkMode = SettingsService.Current.IsDarkMode;
+            StateHasChanged();
+        });
+    }
+
+    private void OnAuthStateChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleDrawer() => _isDrawerOpen = !_isDrawerOpen;
+
+    private void Logout() => AuthService.Logout();
+
+    private void CloseWindow() => WindowService.CloseWindow();
+
+    public void Dispose()
+    {
+        SettingsService.SettingsChanged -= OnSettingsChanged;
+        AuthService.AuthStateChanged -= OnAuthStateChanged;
+    }
+}

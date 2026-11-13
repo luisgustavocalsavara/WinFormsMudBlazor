@@ -1,14 +1,15 @@
 using System.Diagnostics;
+using GustaMudBlazor.Models.Interfaces;
 using Microsoft.AspNetCore.Components.WebView.WindowsForms;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor.Services;
-using WinFormsMudBlazor.Models.Interfaces;
-using WinFormsMudBlazor.Services;
-using WinFormsMudBlazor.Services.Data;
-using WinFormsMudBlazor.Views;
+using GustaMudBlazor.Services;
+using GustaMudBlazor.Services.Data;
+using GustaMudBlazor.Services.WinForms;
+using GustaMudBlazor.Views;
 
-namespace WinFormsMudBlazor;
+namespace GustaMudBlazor;
 
 public partial class MainForm : Form
 {
@@ -140,7 +141,9 @@ public partial class MainForm : Form
         _loadingPanel.Controls.Add(centerLayout);
 
         Controls.Add(_loadingPanel);
+
         _loadingPanel.BringToFront();
+
     }
 
     private void HideLoadingOverlay()
@@ -169,7 +172,10 @@ public partial class MainForm : Form
         services.AddSingleton<IAuthService, AuthService>();
         services.AddScoped<IBlockService, BlockService>();
         services.AddScoped<IRecipeService, RecipeService>();
-        services.AddScoped<IPlcExportService>(sp => new WinFormsPlcExportService(this, sp.GetRequiredService<IRecipeService>()));
+        services.AddScoped<IPlcExportDataService, PlcExportDataService>();
+        services.AddScoped<IPlcExportService>(sp => new WinFormsPlcExportService(
+            this,
+            sp.GetRequiredService<IPlcExportDataService>()));
         services.AddScoped<IWeatherService, WeatherService>();
     }
 
@@ -211,7 +217,9 @@ public partial class MainForm : Form
                 _isWebViewInitialized = true;
 
                 _loadingLabel?.Text = "Carregando interface Blazor...";
-                BlazorWebView.WebView.CoreWebView2.AddHostObjectToScript("winFormHost", new WinFormInterop(_windowService));
+                BlazorWebView.WebView.CoreWebView2.AddHostObjectToScript(
+                    "winFormHost",
+                    new WinFormInterop(_windowService, HideLoadingOverlayFromBlazor));
 #if DEBUG
                 BeginInvoke((Action)OpenDevToolsWindow);
 #endif
@@ -228,8 +236,26 @@ public partial class MainForm : Form
 
         BlazorWebView.WebView.NavigationCompleted += (s, e) =>
         {
-            HideLoadingOverlay();
+            if (!e.IsSuccess)
+            {
+                _loadingLabel?.Text = $"Falha ao carregar a interface: {e.WebErrorStatus}";
+                if (_loadingProgressBar is not null)
+                {
+                    _loadingProgressBar.Visible = false;
+                }
+            }
         };
+    }
+
+    public void HideLoadingOverlayFromBlazor()
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke((Action)HideLoadingOverlay);
+            return;
+        }
+
+        HideLoadingOverlay();
     }
 
     private void OpenDevToolsWindow()

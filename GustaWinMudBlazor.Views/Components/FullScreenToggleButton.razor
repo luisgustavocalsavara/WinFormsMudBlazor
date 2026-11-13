@@ -1,0 +1,45 @@
+@implements IDisposable
+@inject IWindowService WindowService
+
+<MudTooltip Text="@Tooltip">
+    <MudIconButton Icon="@CurrentIcon"
+                   OnClick="ToggleFullScreen"
+                   Size="Size.Medium"
+                   Color="Color.Primary"
+                   Class="@(_animate ? "fullscreen-icon animate" : "fullscreen-icon")" />
+</MudTooltip>
+
+@code {
+    private bool _isFullScreen;
+    private bool _animate;
+    private string CurrentIcon => _isFullScreen ? Icons.Material.Filled.FullscreenExit : Icons.Material.Filled.Fullscreen;
+    private string Tooltip => _isFullScreen ? "Exit Fullscreen (Esc)" : "Enter Fullscreen (F11)";
+
+    protected override void OnInitialized()
+    {
+        _isFullScreen = WindowService.IsFullScreen;
+        WindowService.FullScreenChanged += OnFullScreenChanged;
+    }
+
+    private void OnFullScreenChanged(bool isFullScreen)
+    {
+        _ = InvokeAsync(() =>
+        {
+            _isFullScreen = isFullScreen;
+            StateHasChanged();
+        });
+    }
+
+    private async Task ToggleFullScreen()
+    {
+        _animate = true;
+        WindowService.ToggleFullScreen();
+        await Task.Delay(300);
+        _animate = false;
+    }
+
+    public void Dispose()
+    {
+        WindowService.FullScreenChanged -= OnFullScreenChanged;
+    }
+}

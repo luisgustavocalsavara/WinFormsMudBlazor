@@ -1,0 +1,647 @@
+@page "/blocos"
+@inject IBlockService BlockService
+@inject IAuthService AuthService
+
+<PageTitle>Blocos por Mixer & Itens</PageTitle>
+
+<div class="d-flex justify-space-between align-center mb-3">
+    <MudText Typo="Typo.h5">Cadastro de Blocos por Mixer e Itens Estruturais</MudText>
+    @if (!string.IsNullOrEmpty(_statusMessage))
+    {
+        <MudChip T="string" Color="@(_hasError ? Color.Error : Color.Success)" Variant="Variant.Filled">
+            @_statusMessage
+        </MudChip>
+    }
+</div>
+
+<MudGrid>
+    <!-- COLUNA ESQUERDA: LISTA E CRUD DE BLOCOS POR MIXER -->
+    <MudItem xs="12" md="5">
+        <MudPaper Elevation="2" Class="pa-4">
+            <div class="d-flex justify-space-between align-center mb-3">
+                <MudText Typo="Typo.h6">Blocos (@_filteredBlocks.Count)</MudText>
+                @if (CanEdit)
+                {
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="StartNewBlock">
+                        Novo Bloco
+                    </MudButton>
+                }
+            </div>
+
+            <!-- FILTRO RÁPIDO POR MIXER (TODOS, MIXER 100, 200, 300, 400) -->
+            <MudGrid Spacing="2" Class="mb-2">
+                <MudItem xs="12" sm="5">
+                    <MudSelect T="MixerType?"
+                               @bind-Value="SelectedMixerFilter"
+                               Label="Filtrar por Mixer"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Dense="true"
+                               Clearable="true"
+                               Placeholder="Todos os Mixers">
+                        @foreach (var mx in Enum.GetValues<MixerType>())
+                        {
+                            <MudSelectItem T="MixerType?" Value="@mx">@mx.GetDisplayName()</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="7">
+                    <MudTextField @bind-Value="BlockSearchTerm"
+                                  Placeholder="Código, Nome ou Descrição..."
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Clearable="true"
+                                  Immediate="true" />
+                </MudItem>
+            </MudGrid>
+
+            @if (_isEditingBlock)
+            {
+                <MudPaper Outlined="true" Class="pa-3 mb-3">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">
+                        @(_editingBlockId == 0 ? "Novo Bloco" : "Editar Bloco")
+                    </MudText>
+
+                    <MudSelect T="MixerType"
+                               @bind-Value="_blockMixerType"
+                               Label="Mixer Exclusivo deste Bloco"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Dense="true"
+                               Class="mb-2">
+                        @foreach (var mx in Enum.GetValues<MixerType>())
+                        {
+                            <MudSelectItem T="MixerType" Value="@mx">@mx.GetDisplayName()</MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    <MudTextField @bind-Value="_blockCode"
+                                  Label="Código do Bloco"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Class="mb-2" />
+
+                    <MudTextField @bind-Value="_blockName"
+                                  Label="Nome do Bloco"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Class="mb-2" />
+
+                    <MudTextField @bind-Value="_blockDescription"
+                                  Label="Descrição"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Lines="2"
+                                  Class="mb-3" />
+
+                    <!-- SELEÇÃO E ARMAZENAMENTO DE ARQUIVO .ICO -->
+                    <div class="d-flex align-center justify-space-between pa-2 mb-3 rounded" style="border: 1px dashed rgba(128,128,128,0.4);">
+                        <div class="d-flex align-center gap-2">
+                            @if (!string.IsNullOrEmpty(_blockIconDataUrl))
+                            {
+                                <img src="@_blockIconDataUrl" alt="Ícone" style="width: 32px; height: 32px; object-fit: contain;" />
+                                <div>
+                                    <MudText Typo="Typo.caption" Class="d-block"><b>@_blockIconFileName</b></MudText>
+                                    <MudLink Typo="Typo.caption" Color="Color.Error" OnClick="ClearBlockIcon">Remover ícone</MudLink>
+                                </div>
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Image" Color="Color.Secondary" />
+                                <MudText Typo="Typo.caption">Nenhum arquivo .ico selecionado</MudText>
+                            }
+                        </div>
+
+                        <MudFileUpload T="IBrowserFile" Accept=".ico" FilesChanged="OnIconFileSelected" MaximumFileCount="1">
+                                <MudButton Variant="Variant.Outlined"
+                                           Color="Color.Primary"
+                                           Size="Size.Small"
+                                           StartIcon="@Icons.Material.Filled.UploadFile">
+                                    Selecionar .ico
+                                </MudButton>
+                        </MudFileUpload>                                                                                                   
+                    
+                    </div>
+
+                    <div class="d-flex justify-end gap-2">
+                        <MudButton Size="Size.Small" OnClick="CancelBlockEdit">Cancelar</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="SaveBlockAsync">Salvar Bloco</MudButton>
+                    </div>
+                </MudPaper>
+            }
+
+            <MudTable T="Block"
+                      Items="_filteredBlocks"
+                      Hover="true"
+                      Dense="true"
+                      Loading="_isLoading"
+                      RowClassFunc="@((block, _) => _selectedBlock?.Id == block.Id ? "mud-theme-primary" : "")"
+                      OnRowClick="@((TableRowClickEventArgs<Block> args) => SelectBlockAsync(args.Item))">
+                <HeaderContent>
+                    <MudTh>Ícone</MudTh>
+                    <MudTh>Mixer</MudTh>
+                    <MudTh>Código</MudTh>
+                    <MudTh>Nome</MudTh>
+                    <MudTh>Itens</MudTh>
+                    @if (CanEdit)
+                    {
+                        <MudTh>Ações</MudTh>
+                    }
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Ícone">
+                        @if (!string.IsNullOrEmpty(context.IconDataUrl))
+                        {
+                            <img src="@context.IconDataUrl" alt="ico" style="width: 24px; height: 24px; object-fit: contain; vertical-align: middle;" />
+                        }
+                        else
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.Widgets" Size="Size.Small" />
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Mixer">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Text">
+                            @context.MixerType.GetDisplayName()
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Código"><code>@context.Code</code></MudTd>
+                    <MudTd DataLabel="Nome">
+                        <b>@context.Name</b>
+                        @if (!string.IsNullOrWhiteSpace(context.Description))
+                        {
+                            <MudText Typo="Typo.caption" Class="d-block">@context.Description</MudText>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Itens">
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@context.Items.Count</MudChip>
+                    </MudTd>
+                    @if (CanEdit)
+                    {
+                        <MudTd>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           Size="Size.Small"
+                                           Color="Color.Inherit"
+                                           OnClick="@(() => StartEditBlock(context))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeleteBlockAsync(context))" />
+                        </MudTd>
+                    }
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Typo="Typo.body2" Class="pa-2">Nenhum bloco encontrado.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    </MudItem>
+
+    <!-- COLUNA DIREITA: ITENS ESTRUTURAIS DO BLOCO SELECIONADO (1:N) -->
+    <MudItem xs="12" md="7">
+        <MudPaper Elevation="2" Class="pa-4">
+            @if (_selectedBlock is null)
+            {
+                <MudAlert Severity="Severity.Info">Selecione um bloco ao lado para visualizar e gerenciar seus itens estruturais.</MudAlert>
+            }
+            else
+            {
+                <div class="d-flex justify-space-between align-center mb-3">
+                    <div class="d-flex align-center gap-3">
+                        @if (!string.IsNullOrEmpty(_selectedBlock.IconDataUrl))
+                        {
+                            <img src="@_selectedBlock.IconDataUrl" alt="ico" style="width: 36px; height: 36px; object-fit: contain;" />
+                        }
+                        else
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.Widgets" Size="Size.Large" Color="Color.Primary" />
+                        }
+                        <div>
+                            <div class="d-flex align-center gap-2">
+                                <MudText Typo="Typo.h6">@_selectedBlock.Name (@_selectedBlock.Code)</MudText>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled">
+                                    Exclusivo: @_selectedBlock.MixerType.GetDisplayName()
+                                </MudChip>
+                            </div>
+                            <MudText Typo="Typo.caption">Os valores de cada Tag são configurados individualmente dentro do @_selectedBlock.MixerType.GetDisplayName() nas Receitas.</MudText>
+                        </div>
+                    </div>
+
+                    @if (CanEdit)
+                    {
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Secondary"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.PlaylistAdd"
+                                   OnClick="StartNewItem">
+                            Incluir Item no Bloco
+                        </MudButton>
+                    }
+                </div>
+
+                <!-- FILTRO DE ITENS POR TAG OU DESCRIÇÃO -->
+                <MudTextField @bind-Value="ItemSearchTerm"
+                              Placeholder="Filtrar itens do bloco por TAG ou Descrição..."
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Clearable="true"
+                              Immediate="true"
+                              Class="mb-3" />
+
+                @if (_isEditingItem)
+                {
+                    <MudPaper Outlined="true" Class="pa-3 mb-3">
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">
+                            @(_editingItemId == 0 ? "Novo Item do Bloco" : "Alterar Item do Bloco")
+                        </MudText>
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" sm="4">
+                                <MudTextField @bind-Value="_itemTag" Label="Tag" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudItem>
+                            <MudItem xs="12" sm="4">
+                                <MudSelect T="ItemDataType" @bind-Value="_itemDataType" Label="Tipo" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                    @foreach (var tipo in Enum.GetValues<ItemDataType>())
+                                    {
+                                        <MudSelectItem Value="@tipo">@tipo</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" sm="4">
+                                <MudTextField @bind-Value="_itemDescription" Label="Descrição" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudItem>
+                        </MudGrid>
+                        <div class="d-flex justify-end gap-2 mt-3">
+                            <MudButton Size="Size.Small" OnClick="CancelItemEdit">Cancelar</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="SaveItemAsync">Salvar Item</MudButton>
+                        </div>
+                    </MudPaper>
+                }
+
+                <MudTable Items="_filteredItems" Hover="true" Dense="true" Striped="true">
+                    <HeaderContent>
+                        <MudTh>Tag</MudTh>
+                        <MudTh>Descrição</MudTh>
+                        <MudTh>Tipo de Dado</MudTh>
+                        @if (CanEdit)
+                        {
+                            <MudTh>Ações</MudTh>
+                        }
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Tag"><code>@context.Tag</code></MudTd>
+                        <MudTd DataLabel="Descrição">@context.Description</MudTd>
+                        <MudTd DataLabel="Tipo de Dado">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Info">@context.DataType</MudChip>
+                        </MudTd>
+                        @if (CanEdit)
+                        {
+                            <MudTd>
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                               Size="Size.Small"
+                                               Color="Color.Primary"
+                                               OnClick="@(() => StartEditItem(context))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Size="Size.Small"
+                                               Color="Color.Error"
+                                               OnClick="@(() => DeleteItemAsync(context))" />
+                            </MudTd>
+                        }
+                    </RowTemplate>
+                    <NoRecordsContent>
+                        <MudText Typo="Typo.body2" Class="pa-2">Nenhum item cadastrado neste bloco.</MudText>
+                    </NoRecordsContent>
+                </MudTable>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private bool CanEdit => AuthService.HasRole(UserRole.Admin, UserRole.Operador);
+
+    private bool _isLoading;
+    private List<Block> _allBlocks = [];
+    private List<RecipeItem> _allSelectedBlockItems = [];
+    private List<Block> _filteredBlocks = [];
+    private Block? _selectedBlock;
+    private List<RecipeItem> _filteredItems = [];
+
+    private MixerType? _selectedMixerFilter;
+    private MixerType? SelectedMixerFilter
+    {
+        get => _selectedMixerFilter;
+        set
+        {
+            if (_selectedMixerFilter != value)
+            {
+                _selectedMixerFilter = value;
+                ApplyBlockFilter();
+            }
+        }
+    }
+
+    private string _blockSearchTerm = string.Empty;
+    private string BlockSearchTerm
+    {
+        get => _blockSearchTerm;
+        set
+        {
+            if (_blockSearchTerm != value)
+            {
+                _blockSearchTerm = value;
+                ApplyBlockFilter();
+            }
+        }
+    }
+
+    private string _itemSearchTerm = string.Empty;
+    private string ItemSearchTerm
+    {
+        get => _itemSearchTerm;
+        set
+        {
+            if (_itemSearchTerm != value)
+            {
+                _itemSearchTerm = value;
+                ApplyItemFilter();
+            }
+        }
+    }
+
+    // --- Estado do Formulário do Bloco ---
+    private bool _isEditingBlock;
+    private int _editingBlockId;
+    private MixerType _blockMixerType = MixerType.MIXER100;
+    private string _blockCode = string.Empty;
+    private string _blockName = string.Empty;
+    private string _blockDescription = string.Empty;
+    private string _blockIconDataUrl = string.Empty;
+    private string _blockIconFileName = string.Empty;
+
+    // --- Estado do Formulário de Item do Bloco ---
+    private bool _isEditingItem;
+    private int _editingItemId;
+    private string _itemTag = string.Empty;
+    private string _itemDescription = string.Empty;
+    private ItemDataType _itemDataType = ItemDataType.INT;
+
+    private string? _statusMessage;
+    private bool _hasError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBlocksAsync();
+    }
+
+    private async Task LoadBlocksAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _allBlocks = await BlockService.GetAllBlocksAsync();
+            ApplyBlockFilter();
+
+            if (_selectedBlock is not null)
+            {
+                await SelectBlockAsync(_selectedBlock);
+            }
+            else if (_filteredBlocks.Count > 0)
+            {
+                await SelectBlockAsync(_filteredBlocks[0]);
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SelectBlockAsync(Block? block)
+    {
+        if (block is null)
+        {
+            _selectedBlock = null;
+            _allSelectedBlockItems = [];
+            _filteredItems = [];
+            return;
+        }
+
+        var detailed = await BlockService.GetBlockWithItemsAsync(block.Id);
+        _selectedBlock = detailed;
+        _allSelectedBlockItems = detailed?.Items ?? [];
+        _isEditingItem = false;
+        ApplyItemFilter();
+    }
+
+    private void ApplyBlockFilter()
+    {
+        IEnumerable<Block> query = _allBlocks;
+
+        if (_selectedMixerFilter.HasValue)
+        {
+            query = query.Where(b => b.MixerType == _selectedMixerFilter.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_blockSearchTerm))
+        {
+            var term = _blockSearchTerm.Trim();
+            query = query.Where(b =>
+                b.Code.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                b.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                b.Description.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                b.MixerType.GetDisplayName().Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+
+        _filteredBlocks = query.ToList();
+    }
+
+    private void ApplyItemFilter()
+    {
+        if (string.IsNullOrWhiteSpace(_itemSearchTerm))
+        {
+            _filteredItems = [.. _allSelectedBlockItems];
+            return;
+        }
+
+        var term = _itemSearchTerm.Trim();
+        _filteredItems = _allSelectedBlockItems
+            .Where(i =>
+                i.Tag.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                i.Description.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private void StartNewBlock()
+    {
+        _editingBlockId = 0;
+        _blockMixerType = _selectedMixerFilter ?? MixerType.MIXER100;
+        _blockCode = string.Empty;
+        _blockName = string.Empty;
+        _blockDescription = string.Empty;
+        _blockIconDataUrl = string.Empty;
+        _blockIconFileName = string.Empty;
+        _isEditingBlock = true;
+        _statusMessage = null;
+    }
+
+    private void StartEditBlock(Block block)
+    {
+        _editingBlockId = block.Id;
+        _blockMixerType = block.MixerType;
+        _blockCode = block.Code;
+        _blockName = block.Name;
+        _blockDescription = block.Description;
+        _blockIconDataUrl = block.IconDataUrl;
+        _blockIconFileName = block.IconFileName;
+        _isEditingBlock = true;
+        _statusMessage = null;
+    }
+
+    private void CancelBlockEdit() => _isEditingBlock = false;
+
+    private async Task OnIconFileSelected(IBrowserFile? file)
+    {
+        if (file is null) return;
+
+        using var stream = file.OpenReadStream(maxAllowedSize: 2 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        var bytes = ms.ToArray();
+        if (bytes.Length == 0) return;
+
+        var base64 = Convert.ToBase64String(bytes);
+        _blockIconDataUrl = $"data:image/x-icon;base64,{base64}";
+        _blockIconFileName = file.Name;
+        _hasError = false;
+        _statusMessage = $"Ícone '{file.Name}' carregado.";
+    }
+
+    private void ClearBlockIcon()
+    {
+        _blockIconDataUrl = string.Empty;
+        _blockIconFileName = string.Empty;
+    }
+
+    private async Task SaveBlockAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_blockCode) || string.IsNullOrWhiteSpace(_blockName))
+        {
+            _hasError = true;
+            _statusMessage = "Informe o Código do Bloco e o Nome do Bloco.";
+            return;
+        }
+
+        try
+        {
+            var block = new Block
+            {
+                Id = _editingBlockId,
+                MixerType = _blockMixerType,
+                Code = _blockCode.Trim(),
+                Name = _blockName.Trim(),
+                Description = _blockDescription.Trim(),
+                IconDataUrl = _blockIconDataUrl,
+                IconFileName = _blockIconFileName
+            };
+
+            var saved = await BlockService.SaveBlockAsync(block);
+            _isEditingBlock = false;
+            _hasError = false;
+            _statusMessage = $"Bloco salvo com sucesso no {saved.MixerType.GetDisplayName()}!";
+
+            _allBlocks = await BlockService.GetAllBlocksAsync();
+            ApplyBlockFilter();
+            await SelectBlockAsync(saved);
+        }
+        catch (Exception ex)
+        {
+            _hasError = true;
+            _statusMessage = ex.Message;
+        }
+    }
+
+    private async Task DeleteBlockAsync(Block block)
+    {
+        await BlockService.DeleteBlockAsync(block.Id);
+        if (_selectedBlock?.Id == block.Id)
+        {
+            _selectedBlock = null;
+            _allSelectedBlockItems = [];
+            _filteredItems = [];
+        }
+        await LoadBlocksAsync();
+        _hasError = false;
+        _statusMessage = "Bloco excluído.";
+    }
+
+    private void StartNewItem()
+    {
+        if (_selectedBlock is null) return;
+        _editingItemId = 0;
+        _itemTag = string.Empty;
+        _itemDescription = string.Empty;
+        _itemDataType = ItemDataType.INT;
+        _isEditingItem = true;
+        _statusMessage = null;
+    }
+
+    private void StartEditItem(RecipeItem item)
+    {
+        _editingItemId = item.Id;
+        _itemTag = item.Tag;
+        _itemDescription = item.Description;
+        _itemDataType = item.DataType;
+        _isEditingItem = true;
+        _statusMessage = null;
+    }
+
+    private void CancelItemEdit() => _isEditingItem = false;
+
+    private async Task SaveItemAsync()
+    {
+        if (_selectedBlock is null) return;
+
+        if (string.IsNullOrWhiteSpace(_itemTag))
+        {
+            _hasError = true;
+            _statusMessage = "O campo Tag é obrigatório.";
+            return;
+        }
+
+        var item = new RecipeItem
+        {
+            Id = _editingItemId,
+            BlockId = _selectedBlock.Id,
+            Tag = _itemTag.Trim(),
+            Description = _itemDescription.Trim(),
+            DataType = _itemDataType
+        };
+
+        await BlockService.SaveBlockItemAsync(item);
+        _isEditingItem = false;
+        _hasError = false;
+        _statusMessage = "Item estrutural salvo no bloco! Os valores são definidos em cada Receita.";
+
+        await SelectBlockAsync(_selectedBlock);
+        _allBlocks = await BlockService.GetAllBlocksAsync();
+        ApplyBlockFilter();
+    }
+
+    private async Task DeleteItemAsync(RecipeItem item)
+    {
+        if (_selectedBlock is null) return;
+        await BlockService.DeleteBlockItemAsync(item.Id);
+        await SelectBlockAsync(_selectedBlock);
+        _allBlocks = await BlockService.GetAllBlocksAsync();
+        ApplyBlockFilter();
+        _hasError = false;
+        _statusMessage = "Item removido do bloco.";
+    }
+}
